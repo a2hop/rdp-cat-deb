@@ -1,0 +1,29 @@
+#!/bin/bash
+set -e
+
+echo "===================================="
+echo "RDP-Cat Post-Installation"
+echo "===================================="
+
+# Set proper permissions on binary
+if [ -f /usr/local/bin/rdp-cat ]; then
+    chmod 755 /usr/local/bin/rdp-cat
+    chown root:root /usr/local/bin/rdp-cat
+    echo "✓ rdp-cat binary permissions set"
+fi
+
+echo ""
+echo "===================================="
+echo "Installation Complete!"
+echo "===================================="
+echo ""
+echo "RDP-Cat has been installed successfully!"
+echo ""
+echo "Usage:"
+echo "  rdp-cat --help"
+echo ""
+echo "Binary location: /usr/local/bin/rdp-cat"
+echo ""
+
+#DEBHELPER#
+exit 0

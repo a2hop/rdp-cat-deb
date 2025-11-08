@@ -1,0 +1,15 @@
+#!/bin/bash
+set -e
+
+# This script runs after the package is removed
+
+if [ "$1" = "remove" ]; then
+    echo "RDP-Cat has been removed."
+fi
+
+if [ "$1" = "purge" ]; then
+    echo "RDP-Cat has been purged."
+fi
+
+#DEBHELPER#
+exit 0

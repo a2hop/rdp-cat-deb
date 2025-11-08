@@ -1,0 +1,11 @@
+#!/bin/bash
+set -e
+
+# This script runs before the package is removed
+
+if [ "$1" = "remove" ]; then
+    echo "Preparing to remove RDP-Cat..."
+fi
+
+#DEBHELPER#
+exit 0

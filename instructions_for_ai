@@ -1,0 +1,9 @@
+Get the binary from github:
+https://github.com/a2hop/rdp-cat/releases/download/1.0.0/rdp-cat
+
+package name: picx--rdpcat
+
+It depends on:
+freerdp2x and libssh2 (pick the right package name)
+
+Binary installs to /usr/local/bin/rdp-cat

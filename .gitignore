@@ -1,0 +1,40 @@
+# Debian package build artifacts
+*.deb
+*.changes
+*.buildinfo
+
+# Downloaded binaries
+rdp-cat
+pkg/usr/local/bin/rdp-cat
+
+# Backup files
+*~
+*.bak
+*.swp
+*.swo
+.*.swp
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.code-workspace
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Build directories
+build/
+dist/
+*.egg-info/
+
+# Package staging area (if any binaries are copied here during build)
+pkg/usr/
+
+# Git merge files
+*.orig

@@ -1,0 +1,242 @@
+name: Build and Release RDP-Cat Debian Package
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'deb_version'
+      - 'pkg/**'
+      - '.github/workflows/build_and_release.yaml'
+  workflow_dispatch:
+
+jobs:
+  check_release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_exists: ${{ steps.check.outputs.exists }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read package version
+        id: version
+        run: |
+          source deb_version
+          echo "deb_version=${DEB}" >> $GITHUB_OUTPUT
+          echo "bin_version=${BIN}" >> $GITHUB_OUTPUT
+          echo "Package version: ${DEB}"
+          echo "Binary version: ${BIN}"
+
+      - name: Check if release exists
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view v${{ steps.version.outputs.deb_version }} &>/dev/null; then
+            echo "Release v${{ steps.version.outputs.deb_version }} already exists"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Release v${{ steps.version.outputs.deb_version }} does not exist"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    needs: check_release
+    if: needs.check_release.outputs.release_exists == 'false'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read package version
+        id: version
+        run: |
+          source deb_version
+          echo "deb_version=${DEB}" >> $GITHUB_OUTPUT
+          echo "bin_version=${BIN}" >> $GITHUB_OUTPUT
+          echo "Package version: ${DEB}"
+          echo "Binary version: ${BIN}"
+
+      - name: Update control file version
+        env:
+          DEB_VERSION: ${{ steps.version.outputs.deb_version }}
+        run: |
+          sed -i "s/^Version: .*/Version: ${DEB_VERSION}/" pkg/DEBIAN/control
+          echo "Control file version updated to: ${DEB_VERSION}"
+          grep "^Version:" pkg/DEBIAN/control
+
+      - name: Download RDP-Cat binary
+        env:
+          ARCH: ${{ matrix.arch }}
+          RDP_CAT_VERSION: ${{ steps.version.outputs.bin_version }}
+          GH_TOKEN: ${{ secrets.DEB_BUILDER_PAT }}
+        run: |
+          
+          # Map GitHub architecture names to download URLs
+          # Note: Adjust the download URL pattern based on actual release naming
+          case "$ARCH" in
+            amd64)
+              BINARY_URL="https://github.com/a2hop/rdp-cat/releases/download/${RDP_CAT_VERSION}/rdp-cat"
+              ;;
+            arm64)
+              BINARY_URL="https://github.com/a2hop/rdp-cat/releases/download/${RDP_CAT_VERSION}/rdp-cat-arm64"
+              ;;
+            armv7)
+              BINARY_URL="https://github.com/a2hop/rdp-cat/releases/download/${RDP_CAT_VERSION}/rdp-cat-armv7"
+              ;;
+            *)
+              echo "Unknown architecture: $ARCH"
+              exit 1
+              ;;
+          esac
+
+          echo "Downloading from: $BINARY_URL"
+          
+          # Try to download the binary with authentication
+          if ! curl -L -f -H "Authorization: token ${GH_TOKEN}" -o rdp-cat "$BINARY_URL"; then
+            echo "Warning: Failed to download architecture-specific binary"
+            echo "Falling back to default binary for amd64"
+            if [ "$ARCH" != "amd64" ]; then
+              echo "Note: Cross-architecture binary may not work on target system"
+            fi
+            curl -L -H "Authorization: token ${GH_TOKEN}" -o rdp-cat "https://github.com/a2hop/rdp-cat/releases/download/${RDP_CAT_VERSION}/rdp-cat"
+          fi
+
+          # Verify binary exists
+          if [ ! -f rdp-cat ]; then
+            echo "Failed to download rdp-cat binary"
+            exit 1
+          fi
+
+          # Make binary executable and move to package
+          chmod 755 rdp-cat
+          mkdir -p pkg/usr/local/bin
+          cp rdp-cat pkg/usr/local/bin/
+          echo "RDP-Cat binary installed successfully"
+
+          # Show binary info
+          ls -lh pkg/usr/local/bin/rdp-cat
+          file pkg/usr/local/bin/rdp-cat
+
+      - name: Set script permissions
+        run: |
+          # Set permissions for maintainer scripts (DEBIAN control files)
+          chmod 755 pkg/DEBIAN/postinst
+          chmod 755 pkg/DEBIAN/prerm
+          chmod 755 pkg/DEBIAN/postrm
+          
+          # Set permissions for control file
+          chmod 644 pkg/DEBIAN/control
+          
+          echo "All permissions set correctly"
+          ls -la pkg/DEBIAN/
+
+      - name: Create Debian package
+        env:
+          DEB_VERSION: ${{ steps.version.outputs.deb_version }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          # Set architecture in control file
+          sed -i "s/Architecture: .*/Architecture: ${ARCH}/" pkg/DEBIAN/control
+
+          # Create the .deb package
+          dpkg-deb --build pkg picx--rdpcat_${DEB_VERSION}_${ARCH}.deb
+
+          # Verify package
+          if [ ! -f "picx--rdpcat_${DEB_VERSION}_${ARCH}.deb" ]; then
+            echo "Failed to create Debian package"
+            exit 1
+          fi
+
+          # Show package info
+          echo "Package created successfully"
+          ls -lh picx--rdpcat_${DEB_VERSION}_${ARCH}.deb
+          dpkg -I picx--rdpcat_${DEB_VERSION}_${ARCH}.deb
+
+      - name: Test package contents
+        env:
+          DEB_VERSION: ${{ steps.version.outputs.deb_version }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          echo "=== Package Contents ==="
+          dpkg -c picx--rdpcat_${DEB_VERSION}_${ARCH}.deb
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-cat-${{ matrix.arch }}
+          path: picx--rdpcat_*.deb
+          retention-days: 7
+
+  release:
+    needs: build
+    if: needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read package version
+        id: version
+        run: |
+          source deb_version
+          echo "deb_version=${DEB}" >> $GITHUB_OUTPUT
+          echo "bin_version=${BIN}" >> $GITHUB_OUTPUT
+          echo "Package version: ${DEB}"
+          echo "Binary version: ${BIN}"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Organize artifacts
+        run: |
+          mkdir -p release
+          find artifacts -name "picx--rdpcat_*.deb" -exec cp {} release/ \;
+          cd release
+          ls -lh
+          echo "=== Artifacts Ready for Release ==="
+          sha256sum picx--rdpcat_*.deb > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ steps.version.outputs.deb_version }}
+          name: RDP-Cat v${{ steps.version.outputs.deb_version }}
+          body: |
+            Debian package for RDP-Cat v${{ steps.version.outputs.bin_version }}
+            
+            **Package Version:** ${{ steps.version.outputs.deb_version }}
+            **Binary Version:** ${{ steps.version.outputs.bin_version }}
+            
+            **Install:** `sudo apt install ./picx--rdpcat_${{ steps.version.outputs.deb_version }}_amd64.deb`
+            
+            **Verify:** `sha256sum -c SHA256SUMS`
+            
+            **Dependencies:**
+            - freerdp2-x11
+            - libssh2-1
+          artifacts: release/picx--rdpcat_*.deb,release/SHA256SUMS
+          draft: false
+          prerelease: false
+
+      - name: Release Summary
+        run: |
+          echo "✅ Release created successfully!"
+          echo ""
+          echo "Package Version: ${{ steps.version.outputs.deb_version }}"
+          echo "Binary Version: ${{ steps.version.outputs.bin_version }}"
+          echo ""
+          echo "Artifacts:"
+          ls -lh release/picx--rdpcat_*.deb
+          echo ""
+          echo "Checksums:"
+          cat release/SHA256SUMS
