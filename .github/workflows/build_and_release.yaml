@@ -75,6 +75,18 @@ jobs:
           RDP_CAT_VERSION: ${{ steps.version.outputs.bin_version }}
           GH_TOKEN: ${{ secrets.DEB_BUILDER_PAT }}
         run: |
+          # Verify token is set
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "Error: DEB_BUILDER_PAT secret is not set!"
+            exit 1
+          fi
+          
+          # List available releases to help debugging
+          echo "Checking available releases..."
+          curl -s -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/a2hop/rdp-cat/releases" | \
+            jq -r '.[].tag_name' | head -5 || echo "Could not fetch releases (check token permissions)"
+          echo ""
           
           # Determine binary filename based on architecture
           case "$ARCH" in
@@ -93,18 +105,21 @@ jobs:
               ;;
           esac
           
+          # Set up authentication headers (try both Bearer and token formats)
+          AUTH_HEADER="Authorization: Bearer ${GH_TOKEN}"
+          
           # Try to download architecture-specific binary
           # First try without 'v' prefix
           BINARY_URL="https://github.com/a2hop/rdp-cat/releases/download/${RDP_CAT_VERSION}/${BINARY_NAME}"
           echo "Downloading from: $BINARY_URL"
-          HTTP_CODE=$(curl -L -w "%{http_code}" -H "Authorization: token ${GH_TOKEN}" -o rdp-cat "$BINARY_URL")
+          HTTP_CODE=$(curl -L -w "%{http_code}" -H "${AUTH_HEADER}" -o rdp-cat "$BINARY_URL")
           
           # If failed, try with 'v' prefix
           if [ "$HTTP_CODE" != "200" ]; then
             echo "Failed (HTTP $HTTP_CODE), trying with 'v' prefix..."
             BINARY_URL="https://github.com/a2hop/rdp-cat/releases/download/v${RDP_CAT_VERSION}/${BINARY_NAME}"
             echo "Downloading from: $BINARY_URL"
-            HTTP_CODE=$(curl -L -w "%{http_code}" -H "Authorization: token ${GH_TOKEN}" -o rdp-cat "$BINARY_URL")
+            HTTP_CODE=$(curl -L -w "%{http_code}" -H "${AUTH_HEADER}" -o rdp-cat "$BINARY_URL")
           fi
           
           # If arch-specific binary failed, try fallback to amd64
@@ -115,13 +130,13 @@ jobs:
             # Try without 'v' prefix
             BINARY_URL="https://github.com/a2hop/rdp-cat/releases/download/${RDP_CAT_VERSION}/rdp-cat"
             echo "Downloading from: $BINARY_URL"
-            HTTP_CODE=$(curl -L -w "%{http_code}" -H "Authorization: token ${GH_TOKEN}" -o rdp-cat "$BINARY_URL")
+            HTTP_CODE=$(curl -L -w "%{http_code}" -H "${AUTH_HEADER}" -o rdp-cat "$BINARY_URL")
             
             # Try with 'v' prefix
             if [ "$HTTP_CODE" != "200" ]; then
               BINARY_URL="https://github.com/a2hop/rdp-cat/releases/download/v${RDP_CAT_VERSION}/rdp-cat"
               echo "Downloading from: $BINARY_URL"
-              HTTP_CODE=$(curl -L -w "%{http_code}" -H "Authorization: token ${GH_TOKEN}" -o rdp-cat "$BINARY_URL")
+              HTTP_CODE=$(curl -L -w "%{http_code}" -H "${AUTH_HEADER}" -o rdp-cat "$BINARY_URL")
             fi
           fi
           
