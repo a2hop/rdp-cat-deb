@@ -76,48 +76,66 @@ jobs:
           GH_TOKEN: ${{ secrets.DEB_BUILDER_PAT }}
         run: |
           
-          # Map GitHub architecture names to download URLs
-          # Note: Adjust the download URL pattern based on actual release naming
+          # Determine binary filename based on architecture
           case "$ARCH" in
             amd64)
-              BINARY_URL="https://github.com/a2hop/rdp-cat/releases/download/${RDP_CAT_VERSION}/rdp-cat"
+              BINARY_NAME="rdp-cat"
               ;;
             arm64)
-              BINARY_URL="https://github.com/a2hop/rdp-cat/releases/download/${RDP_CAT_VERSION}/rdp-cat-arm64"
+              BINARY_NAME="rdp-cat-arm64"
               ;;
             armv7)
-              BINARY_URL="https://github.com/a2hop/rdp-cat/releases/download/${RDP_CAT_VERSION}/rdp-cat-armv7"
+              BINARY_NAME="rdp-cat-armv7"
               ;;
             *)
               echo "Unknown architecture: $ARCH"
               exit 1
               ;;
           esac
-
-          echo "Downloading from: $BINARY_URL"
           
-          # Try to download the binary with authentication
+          # Try to download architecture-specific binary
+          # First try without 'v' prefix
+          BINARY_URL="https://github.com/a2hop/rdp-cat/releases/download/${RDP_CAT_VERSION}/${BINARY_NAME}"
+          echo "Downloading from: $BINARY_URL"
           HTTP_CODE=$(curl -L -w "%{http_code}" -H "Authorization: token ${GH_TOKEN}" -o rdp-cat "$BINARY_URL")
           
+          # If failed, try with 'v' prefix
           if [ "$HTTP_CODE" != "200" ]; then
+            echo "Failed (HTTP $HTTP_CODE), trying with 'v' prefix..."
+            BINARY_URL="https://github.com/a2hop/rdp-cat/releases/download/v${RDP_CAT_VERSION}/${BINARY_NAME}"
+            echo "Downloading from: $BINARY_URL"
+            HTTP_CODE=$(curl -L -w "%{http_code}" -H "Authorization: token ${GH_TOKEN}" -o rdp-cat "$BINARY_URL")
+          fi
+          
+          # If arch-specific binary failed, try fallback to amd64
+          if [ "$HTTP_CODE" != "200" ] && [ "$BINARY_NAME" != "rdp-cat" ]; then
             echo "Warning: Failed to download architecture-specific binary (HTTP $HTTP_CODE)"
-            echo "Falling back to default binary for amd64"
-            if [ "$ARCH" != "amd64" ]; then
-              echo "Note: Cross-architecture binary may not work on target system"
-            fi
+            echo "Falling back to default binary (rdp-cat) for all architectures"
             
-            FALLBACK_URL="https://github.com/a2hop/rdp-cat/releases/download/${RDP_CAT_VERSION}/rdp-cat"
-            echo "Downloading from: $FALLBACK_URL"
-            HTTP_CODE=$(curl -L -w "%{http_code}" -H "Authorization: token ${GH_TOKEN}" -o rdp-cat "$FALLBACK_URL")
+            # Try without 'v' prefix
+            BINARY_URL="https://github.com/a2hop/rdp-cat/releases/download/${RDP_CAT_VERSION}/rdp-cat"
+            echo "Downloading from: $BINARY_URL"
+            HTTP_CODE=$(curl -L -w "%{http_code}" -H "Authorization: token ${GH_TOKEN}" -o rdp-cat "$BINARY_URL")
             
+            # Try with 'v' prefix
             if [ "$HTTP_CODE" != "200" ]; then
-              echo "Error: Failed to download fallback binary (HTTP $HTTP_CODE)"
-              echo "Please verify:"
-              echo "  1. Release ${RDP_CAT_VERSION} exists"
-              echo "  2. Binary 'rdp-cat' exists in the release"
-              echo "  3. DEB_BUILDER_PAT token has access to the repository"
-              exit 1
+              BINARY_URL="https://github.com/a2hop/rdp-cat/releases/download/v${RDP_CAT_VERSION}/rdp-cat"
+              echo "Downloading from: $BINARY_URL"
+              HTTP_CODE=$(curl -L -w "%{http_code}" -H "Authorization: token ${GH_TOKEN}" -o rdp-cat "$BINARY_URL")
             fi
+          fi
+          
+          # Final check
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Error: Failed to download binary (HTTP $HTTP_CODE)"
+            echo ""
+            echo "Please verify:"
+            echo "  1. Release '${RDP_CAT_VERSION}' or 'v${RDP_CAT_VERSION}' exists at:"
+            echo "     https://github.com/a2hop/rdp-cat/releases"
+            echo "  2. Binary '${BINARY_NAME}' or 'rdp-cat' exists in the release"
+            echo "  3. DEB_BUILDER_PAT token has access to the a2hop/rdp-cat repository"
+            echo ""
+            exit 1
           fi
 
           # Verify binary exists
