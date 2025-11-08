@@ -1,0 +1,2 @@
+# This directory will contain the rdp-cat binary during build
+# The binary is downloaded and placed here by build.sh or GitHub Actions

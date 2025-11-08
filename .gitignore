@@ -33,8 +33,9 @@ build/
 dist/
 *.egg-info/
 
-# Package staging area (if any binaries are copied here during build)
-pkg/usr/
+# Package staging area - ignore binaries but keep directory structure
+pkg/usr/local/bin/rdp-cat
+pkg/usr/local/bin/doh-*
 
 # Git merge files
 *.orig
