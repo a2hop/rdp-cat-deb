@@ -10,33 +10,15 @@ This directory contains the build configuration for creating a Debian package fo
   - `freerdp2x`
   - `libssh2-1`
 
-## Building Locally
+## Installation
 
-### Prerequisites
+Download the latest release from the [Releases page](https://github.com/a2hop/rdp-cat-deb/releases) and install:
 
-- Debian-based Linux system (Ubuntu, Debian, etc.)
-- `dpkg-deb` (usually pre-installed)
-- `curl` for downloading the binary
+```bash
+sudo apt install ./picx--rdpcat_*.deb
+```
 
-### Build Steps
-
-1. Navigate to this directory:
-   ```bash
-   cd rdp-cat-deb
-   ```
-
-2. Run the build script:
-   ```bash
-   chmod +x build.sh
-   ./build.sh
-   ```
-
-3. Install the generated package:
-   ```bash
-   sudo apt install ./picx--rdpcat_*.deb
-   ```
-
-## GitHub Actions CI/CD
+## GitHub Actions CI/CD (Build System)
 
 The package is automatically built and released via GitHub Actions when:
 - Changes are pushed to the `main` branch
@@ -69,12 +51,19 @@ DEB=1.0.0
 BIN=1.0.0
 ```
 
+## Required Secret
+
+The GitHub Actions workflow requires a Personal Access Token (PAT) to download the rdp-cat binary from the private repository:
+
+- **Secret Name**: `DEB_BUILDER_PAT`
+- **Permissions**: Read access to the a2hop/rdp-cat repository
+- **Location**: Repository Settings → Secrets and variables → Actions
+
 ## Package Structure
 
 ```
 rdp-cat-deb/
 ├── deb_version           # Version file (DEB and BIN variables)
-├── build.sh              # Local build script
 ├── pkg/
 │   └── DEBIAN/
 │       ├── control       # Package metadata
@@ -83,7 +72,7 @@ rdp-cat-deb/
 │       └── postrm        # Post-removal script
 └── .github/
     └── workflows/
-        └── build_and_release.yaml
+        └── build_and_release.yaml  # CI/CD workflow
 ```
 
 ## Usage
