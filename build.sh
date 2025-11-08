@@ -78,6 +78,11 @@ chmod 644 pkg/DEBIAN/control
 sed -i "s/^Version: .*/Version: ${DEB_VERSION}/" pkg/DEBIAN/control
 sed -i "s/Architecture: .*/Architecture: ${ARCH}/" pkg/DEBIAN/control
 
+# Remove .gitkeep files from package
+echo ""
+echo "Removing .gitkeep files..."
+find pkg -name '.gitkeep' -delete
+
 # Build package
 echo ""
 echo "Building Debian package..."

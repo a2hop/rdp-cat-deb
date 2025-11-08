@@ -143,6 +143,10 @@ jobs:
           # Set architecture in control file
           sed -i "s/Architecture: .*/Architecture: ${ARCH}/" pkg/DEBIAN/control
 
+          # Remove .gitkeep files from package
+          echo "Removing .gitkeep files..."
+          find pkg -name '.gitkeep' -delete
+
           # Create the .deb package
           dpkg-deb --build pkg picx--rdpcat_${DEB_VERSION}_${ARCH}.deb
 
