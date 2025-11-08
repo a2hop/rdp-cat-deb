@@ -257,18 +257,7 @@ jobs:
           tag: v${{ steps.version.outputs.deb_version }}
           name: RDP-Cat v${{ steps.version.outputs.deb_version }}
           body: |
-            Debian package for RDP-Cat v${{ steps.version.outputs.bin_version }}
-            
-            **Package Version:** ${{ steps.version.outputs.deb_version }}
-            **Binary Version:** ${{ steps.version.outputs.bin_version }}
-            
-            **Install:** `sudo apt install ./picx--rdpcat_${{ steps.version.outputs.deb_version }}_amd64.deb`
-            
-            **Verify:** `sha256sum -c SHA256SUMS`
-            
-            **Dependencies:**
-            - freerdp2-x11
-            - libssh2-1
+            Debian package for RDP-Cat
           artifacts: release/picx--rdpcat_*.deb,release/SHA256SUMS
           draft: false
           prerelease: false
