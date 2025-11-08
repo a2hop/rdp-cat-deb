@@ -75,100 +75,86 @@ jobs:
           RDP_CAT_VERSION: ${{ steps.version.outputs.bin_version }}
           GH_TOKEN: ${{ secrets.DEB_BUILDER_PAT }}
         run: |
-          # Verify token is set
+          # Ensure token is present
           if [ -z "${GH_TOKEN}" ]; then
-            echo "Error: DEB_BUILDER_PAT secret is not set!"
-            exit 1
-          fi
-          
-          # List available releases to help debugging
-          echo "Checking available releases..."
-          curl -s -H "Authorization: Bearer ${GH_TOKEN}" \
-            "https://api.github.com/repos/a2hop/rdp-cat/releases" | \
-            jq -r '.[].tag_name' | head -5 || echo "Could not fetch releases (check token permissions)"
-          echo ""
-          
-          # Determine binary filename based on architecture
-          case "$ARCH" in
-            amd64)
-              BINARY_NAME="rdp-cat"
-              ;;
-            arm64)
-              BINARY_NAME="rdp-cat-arm64"
-              ;;
-            armv7)
-              BINARY_NAME="rdp-cat-armv7"
-              ;;
-            *)
-              echo "Unknown architecture: $ARCH"
-              exit 1
-              ;;
-          esac
-          
-          # Set up authentication headers (try both Bearer and token formats)
-          AUTH_HEADER="Authorization: Bearer ${GH_TOKEN}"
-          
-          # Try to download architecture-specific binary
-          # First try without 'v' prefix
-          BINARY_URL="https://github.com/a2hop/rdp-cat/releases/download/${RDP_CAT_VERSION}/${BINARY_NAME}"
-          echo "Downloading from: $BINARY_URL"
-          HTTP_CODE=$(curl -L -w "%{http_code}" -H "${AUTH_HEADER}" -o rdp-cat "$BINARY_URL")
-          
-          # If failed, try with 'v' prefix
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "Failed (HTTP $HTTP_CODE), trying with 'v' prefix..."
-            BINARY_URL="https://github.com/a2hop/rdp-cat/releases/download/v${RDP_CAT_VERSION}/${BINARY_NAME}"
-            echo "Downloading from: $BINARY_URL"
-            HTTP_CODE=$(curl -L -w "%{http_code}" -H "${AUTH_HEADER}" -o rdp-cat "$BINARY_URL")
-          fi
-          
-          # If arch-specific binary failed, try fallback to amd64
-          if [ "$HTTP_CODE" != "200" ] && [ "$BINARY_NAME" != "rdp-cat" ]; then
-            echo "Warning: Failed to download architecture-specific binary (HTTP $HTTP_CODE)"
-            echo "Falling back to default binary (rdp-cat) for all architectures"
-            
-            # Try without 'v' prefix
-            BINARY_URL="https://github.com/a2hop/rdp-cat/releases/download/${RDP_CAT_VERSION}/rdp-cat"
-            echo "Downloading from: $BINARY_URL"
-            HTTP_CODE=$(curl -L -w "%{http_code}" -H "${AUTH_HEADER}" -o rdp-cat "$BINARY_URL")
-            
-            # Try with 'v' prefix
-            if [ "$HTTP_CODE" != "200" ]; then
-              BINARY_URL="https://github.com/a2hop/rdp-cat/releases/download/v${RDP_CAT_VERSION}/rdp-cat"
-              echo "Downloading from: $BINARY_URL"
-              HTTP_CODE=$(curl -L -w "%{http_code}" -H "${AUTH_HEADER}" -o rdp-cat "$BINARY_URL")
-            fi
-          fi
-          
-          # Final check
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "Error: Failed to download binary (HTTP $HTTP_CODE)"
-            echo ""
-            echo "Please verify:"
-            echo "  1. Release '${RDP_CAT_VERSION}' or 'v${RDP_CAT_VERSION}' exists at:"
-            echo "     https://github.com/a2hop/rdp-cat/releases"
-            echo "  2. Binary '${BINARY_NAME}' or 'rdp-cat' exists in the release"
-            echo "  3. DEB_BUILDER_PAT token has access to the a2hop/rdp-cat repository"
-            echo ""
+            echo "Error: DEB_BUILDER_PAT not set"
             exit 1
           fi
 
-          # Verify binary exists
-          if [ ! -f rdp-cat ]; then
-            echo "Failed to download rdp-cat binary"
+          echo "Listing release tags (first 5):"
+          curl -s -H "Authorization: Bearer ${GH_TOKEN}" \
+            https://api.github.com/repos/a2hop/rdp-cat/releases | \
+            jq -r '.[].tag_name' | head -5 || echo "(release list unavailable)"
+          echo "Target binary version: ${RDP_CAT_VERSION}"
+
+          # Map architecture to candidate asset names
+          case "$ARCH" in
+            amd64)   CANDIDATES="rdp-cat rdp-cat-amd64" ;;
+            arm64)   CANDIDATES="rdp-cat-arm64 rdp-cat" ;;
+            armv7)   CANDIDATES="rdp-cat-armv7 rdp-cat-arm rdp-cat" ;;
+            *) echo "Unknown arch $ARCH"; exit 1 ;;
+          esac
+
+          # Fetch release JSON (try without and with v prefix)
+          RELEASE_JSON=$(curl -s -H "Authorization: Bearer ${GH_TOKEN}" \
+            https://api.github.com/repos/a2hop/rdp-cat/releases/tags/${RDP_CAT_VERSION})
+          
+          if echo "$RELEASE_JSON" | jq -e .id >/dev/null 2>&1; then
+            echo "Found release tag ${RDP_CAT_VERSION}"
+          else
+            echo "Tag ${RDP_CAT_VERSION} not found, trying v${RDP_CAT_VERSION}"
+            RELEASE_JSON=$(curl -s -H "Authorization: Bearer ${GH_TOKEN}" \
+              https://api.github.com/repos/a2hop/rdp-cat/releases/tags/v${RDP_CAT_VERSION})
+          fi
+
+          if ! echo "$RELEASE_JSON" | jq -e .id >/dev/null 2>&1; then
+            echo "Error: release not found for ${RDP_CAT_VERSION} (with or without v prefix)"
+            exit 1
+          fi
+
+          echo "Assets in release:"
+          echo "$RELEASE_JSON" | jq -r '.assets[].name'
+
+          # Find matching asset
+          ASSET_ID=""
+          for name in $CANDIDATES; do
+            ASSET_ID=$(echo "$RELEASE_JSON" | jq -r ".assets[] | select(.name==\"$name\") | .id" | head -1)
+            if [ -n "$ASSET_ID" ] && [ "$ASSET_ID" != "null" ]; then
+              ASSET_NAME="$name"
+              break
+            fi
+          done
+
+          if [ -z "$ASSET_ID" ] || [ "$ASSET_ID" = "null" ]; then
+            echo "Error: none of candidate asset names found: $CANDIDATES"
+            exit 1
+          fi
+
+          echo "Selected asset: $ASSET_NAME (id $ASSET_ID)"
+          DOWNLOAD_URL="https://api.github.com/repos/a2hop/rdp-cat/releases/assets/${ASSET_ID}"
+          echo "Downloading via asset API: $DOWNLOAD_URL"
+          
+          curl -L -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/octet-stream" \
+            -o rdp-cat "$DOWNLOAD_URL"
+
+          # Basic validation
+          if [ ! -s rdp-cat ]; then
+            echo "Error: downloaded file empty"
+            ls -l rdp-cat
             exit 1
           fi
           
-          # Check if it's actually a binary (not HTML error page)
-          if file rdp-cat | grep -q "HTML"; then
-            echo "Error: Downloaded file is HTML (likely an error page), not a binary"
-            echo "Content preview:"
+          if file rdp-cat | grep -qi 'text\|html'; then
+            echo "Error: downloaded asset is not a binary"
             head -20 rdp-cat
             exit 1
           fi
-
-          # Make binary executable and move to package
+          
           chmod 755 rdp-cat
+          echo "rdp-cat binary downloaded successfully"
+
+          # Move to package
           mkdir -p pkg/usr/local/bin
           cp rdp-cat pkg/usr/local/bin/
           echo "RDP-Cat binary installed successfully"
