@@ -6,9 +6,12 @@ This directory contains the build configuration for creating a Debian package fo
 
 - **Package Name**: `picx--rdpcat`
 - **Binary Location**: `/usr/local/bin/rdp-cat`
+- **File association**: `.rdpc` connection files (`application/x-rdpc`) open with rdp-cat
 - **Dependencies**: 
   - `freerdp2x`
+  - `libgtk-3-0t64` (or `libgtk-3-0` on older releases)
   - `libssh2-1`
+  - `sshpass`
 
 ## Installation
 
@@ -65,11 +68,15 @@ The GitHub Actions workflow requires a Personal Access Token (PAT) to download t
 rdp-cat-deb/
 ├── deb_version           # Version file (DEB and BIN variables)
 ├── pkg/
-│   └── DEBIAN/
-│       ├── control       # Package metadata
-│       ├── postinst      # Post-installation script
-│       ├── prerm         # Pre-removal script
-│       └── postrm        # Post-removal script
+│   ├── DEBIAN/
+│   │   ├── control       # Package metadata
+│   │   ├── postinst      # Post-installation script
+│   │   ├── prerm         # Pre-removal script
+│   │   └── postrm        # Post-removal script
+│   └── usr/share/        # Desktop integration (.rdpc file association)
+│       ├── applications/rdp-cat.desktop
+│       ├── mime/packages/rdp-cat-rdpc.xml
+│       └── icons/hicolor/48x48/apps/rdp-cat.png
 └── .github/
     └── workflows/
         └── build_and_release.yaml  # CI/CD workflow
@@ -81,7 +88,16 @@ After installation:
 
 ```bash
 rdp-cat --help
+rdp-cat office.rdpc
 ```
+
+Double-clicking a `.rdpc` file opens it with rdp-cat. The MIME, desktop and icon caches are
+refreshed by the dpkg triggers of `shared-mime-info`, `desktop-file-utils` and
+`hicolor-icon-theme`, so the maintainer scripts don't need to do it.
+
+The files under `pkg/usr/share/` are copies of `packaging/linux/` (and the icon from `assets/`)
+in the rdp-cat repo. Keep them in sync when those change.
+The `.rdpc` association needs a `BIN` version that supports opening connection files.
 
 ## Uninstallation
 

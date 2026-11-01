@@ -3,6 +3,9 @@ Version: 1.0.1
 Architecture: amd64
 Maintainer: RDP-Cat Package Maintainer <maintainer@example.com>
 Homepage: https://github.com/a2hop/rdp-cat
-Depends: freerdp2x, libssh2-1, sshpass
+Depends: freerdp2x, libgtk-3-0t64 | libgtk-3-0, libssh2-1, sshpass
 Description: RDP connection utility with SSH tunneling support
  rdp-cat is a utility for establishing RDP connections.
+ .
+ Registers the .rdpc connection file type so saved connections open
+ with a double-click.

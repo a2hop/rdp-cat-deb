@@ -188,8 +188,8 @@ jobs:
           echo "Removing .gitkeep files..."
           find pkg -name '.gitkeep' -delete
 
-          # Create the .deb package
-          dpkg-deb --build pkg picx--rdpcat_${DEB_VERSION}_${ARCH}.deb
+          # Create the .deb package (root-owned files, not the CI runner's uid)
+          dpkg-deb --root-owner-group --build pkg picx--rdpcat_${DEB_VERSION}_${ARCH}.deb
 
           # Verify package
           if [ ! -f "picx--rdpcat_${DEB_VERSION}_${ARCH}.deb" ]; then

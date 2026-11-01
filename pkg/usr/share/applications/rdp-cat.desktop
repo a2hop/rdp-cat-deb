@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=RDP Cat
+GenericName=Remote Desktop Client
+Comment=Connect to remote desktops and open .rdpc connection files
+Exec=rdp-cat %f
+Icon=rdp-cat
+Terminal=false
+Categories=Network;RemoteAccess;
+MimeType=application/x-rdpc;
