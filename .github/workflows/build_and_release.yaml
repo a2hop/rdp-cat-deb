@@ -12,12 +12,12 @@ on:
 
 jobs:
   check_release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       release_exists: ${{ steps.check.outputs.exists }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Read package version
         id: version
@@ -44,13 +44,13 @@ jobs:
   build:
     needs: check_release
     if: needs.check_release.outputs.release_exists == 'false'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         arch: [amd64]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Read package version
         id: version
@@ -211,7 +211,7 @@ jobs:
           dpkg -c picx--rdpcat_${DEB_VERSION}_${ARCH}.deb
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rdp-cat-${{ matrix.arch }}
           path: picx--rdpcat_*.deb
@@ -220,12 +220,12 @@ jobs:
   release:
     needs: build
     if: needs.build.result == 'success'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Read package version
         id: version
@@ -237,7 +237,7 @@ jobs:
           echo "Binary version: ${BIN}"
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
