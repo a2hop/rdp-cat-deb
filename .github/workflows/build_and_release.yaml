@@ -32,12 +32,17 @@ jobs:
         id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v${{ steps.version.outputs.deb_version }}
         run: |
-          if gh release view v${{ steps.version.outputs.deb_version }} &>/dev/null; then
-            echo "Release v${{ steps.version.outputs.deb_version }} already exists"
+          # Only a release that already has the package counts as done - one created by hand
+          # (e.g. to write the notes first) still gets built and the .deb attached
+          DEBS=$(gh release view "$TAG" --json assets \
+            --jq '[.assets[].name | select(endswith(".deb"))] | length' 2>/dev/null || echo 0)
+          if [ "${DEBS:-0}" -gt 0 ]; then
+            echo "Release $TAG already exists with its package"
             echo "exists=true" >> $GITHUB_OUTPUT
           else
-            echo "Release v${{ steps.version.outputs.deb_version }} does not exist"
+            echo "Release $TAG does not exist or has no package yet"
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
@@ -261,6 +266,11 @@ jobs:
           artifacts: release/picx--rdpcat_*.deb,release/SHA256SUMS
           draft: false
           prerelease: false
+          # Fill in a release created by hand instead of failing on it, keeping its title and notes
+          allowUpdates: true
+          omitNameDuringUpdate: true
+          omitBodyDuringUpdate: true
+          replacesArtifacts: true
 
       - name: Release Summary
         run: |
